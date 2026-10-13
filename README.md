@@ -22,6 +22,7 @@ with a **read-only token**, checks its SHA-256, and installs it next to the data
 | Data | `donnees/` (stats, profiles, saved tables, moderation): never touched by an Update; copied to `sauvegardes/` before each version change (last 5 kept) |
 | Players in AMP | listed: the server prints `[taverne] Arrivée : <name> [compte\|invité\|staff]` and `[taverne] Départ : <name>` |
 | Stop | `SIGTERM`: the server tells players, saves every table in progress to `donnees/`, and exits (15 s max); tables resume at the next start |
+| Graceful update | type `maintenance 10` in AMP's console (or let AMP's scheduler send it): 10-minute countdown banner for every player, no new game, then save, **Update and restart by the start script itself** (exit code 75) |
 | HTTPS | done in front by the host's nginx (`taverne.teamkit.fr`); the game port must stay **closed to the world** |
 
 ## Files
@@ -30,7 +31,7 @@ with a **read-only token**, checks its SHA-256, and installs it next to the data
 |---|---|
 | `taverne.kvp`, `taverne*.json`, `manifest.json` | the AMP template |
 | `scripts/installer-taverne.sh` | Update step: Node.js 22 + the private release (fetched from this repository at each Update) |
-| `scripts/lancer-taverne.sh` | start script: checks every setting, refuses to start with a clear message, then `exec node` |
+| `scripts/lancer-taverne.sh` | start script: checks every setting, refuses to start with a clear message, runs Node (AMP's console goes to its input, AMP's SIGTERM is passed on), and on exit code 75 runs the installer then starts the game again |
 | `verifier.py` | pre-push checks (runs both scripts for real under bash), must print `Tout est bon.` |
 
 ## Instance folder
@@ -68,11 +69,38 @@ A refused archive changes nothing. **Rollback:** set « Version voulue » to the
 | Adresse publique | `TAVERNE_URL_PUBLIQUE` | `https://taverne.teamkit.fr` |
 | Origines autorisées | `TAVERNE_ORIGINES` | `https://taverne.teamkit.fr,https://teamkit.fr,https://www.teamkit.fr` |
 | Derrière nginx | `TAVERNE_PROXY` | oui |
-| Adresse des versions / Jeton de lecture (password) / Version voulue | Update only | `github:hydrocut/taverne` / empty / latest |
+| Adresse des versions / Jeton de lecture (password) / Version voulue | Update, and the start script (restart after `maintenance`; the token goes through `TAVERNE_JETON_VERSIONS`, removed before Node starts) | `github:hydrocut/taverne` / empty / latest |
+| Délai d'annonce par défaut | `TAVERNE_MAINTENANCE_MIN` (`maintenance` typed alone) | 10 min (5, 10 or 15) |
 | Temps par coup (par défaut) | `TAVERNE_PENDULE_MS` | 30 s |
 | Signes des bots | `TAVERNE_SIGNES_BOTS` | oui |
 | Parties / statistiques / modération gardées | `TAVERNE_GARDER_*_JOURS` | 30 / 365 / 365 days |
 | Connexions au plus (AMP's Max Users) / par adresse IP / tables au plus | `TAVERNE_MAX_*` | 1000 / 20 / 500 |
+
+## Graceful update (console command `maintenance`)
+
+The console is writeable (`App.HasWriteableConsole=True`, `App.AdminMethod=STDIO`): what is typed in AMP's console
+reaches the game.
+
+| Command | Effect |
+|---|---|
+| `maintenance 10` (5, 10 or 15) | every connected player sees « 🔧 Mise à jour de la Taverne dans 9:59. Ta partie sera sauvegardée. »; no new game can start; games in progress go on (a card table does not start a deal it cannot finish) |
+| `maintenance` | same, with the default delay (setting « Délai d'annonce par défaut ») |
+| `maintenance maintenant` | emergency: save and stop now |
+| `maintenance annuler` | cancels the countdown (and a scheduled one) |
+| `maintenance etat` | countdown, schedule, and how many games resumed or were cancelled at the last start |
+| `maintenance a 05:00 10` | the game itself starts the 10-minute countdown at 05:00, Paris time (once) |
+
+At zero, the server tells players, saves the tables, prints one `Départ` line per player (AMP's user list empties)
+and **exits with code 75**. The start script then runs `installer-taverne.sh` with the same three Update settings
+(a newer release is installed if there is one; nothing happens otherwise) and starts the game again: the instance
+never stops, players reconnect by themselves (« ✅ La Taverne est de retour ! »). A failed Update changes nothing and
+the current version starts again. Any other exit code (crash) is handed to AMP, which restarts the game
+(`Limits.AutoRetryCount=2`).
+
+**Scheduled update with AMP's scheduler**: Schedule → new trigger (time interval, e.g. every day at 05:00, or one day)
+→ task « Application - Send a command to rcon/console » with `maintenance 10`. Nothing else is needed: the restart and
+the Update are done by the start script. Do **not** use « Update the application » or « Restart the application » for
+this: they stop the game without the countdown (tables are still saved, but players get no warning).
 
 ## Behind nginx in HTTPS
 
@@ -100,6 +128,23 @@ TeamKit : La Taverne 0.1.0 avec Node.js v22.23.3, port 8790, adresse http://127.
 [taverne] 1 table(s) reprise(s) après redémarrage.
 ```
 
+Graceful update (`serveur/test/maintenance-sortie.test.js` and this repository's `verifier.py`):
+
+```
+maintenance 10                                                   ← typed in AMP's console
+[taverne] Maintenance : mise à jour annoncée dans 10 min (console). Plus de nouvelle partie ; les parties en cours continuent, …
+[taverne] Maintenance : arrêt dans 5 min.
+[taverne] Maintenance : arrêt dans 1 min.
+[taverne] Maintenance : c'est l'heure : sauvegarde des parties en cours, arrêt, puis Update et relance (code de sortie 75).
+[taverne] Départ : Kevin                                          ← Console.UserLeaveRegex (AMP's user list empties)
+[taverne] arrêt propre pour la mise à jour : 1 table(s) sauvegardée(s).
+[taverne] Sortie avec le code 75 : relance demandée (mise à jour).
+TeamKit : mise a jour demandee par le jeu (code 75) : Update de La Taverne, puis relance...
+TeamKit : La Taverne 0.2.0 installee (a la place de 0.1.0, gardee dans jeu.ancien/). Donnees gardees : donnees/ (2,1M).
+[taverne] Prêt : La Taverne 0.2.0 écoute sur le port 8790 (https://taverne.teamkit.fr).
+[taverne] 1 table(s) reprise(s) après redémarrage.
+```
+
 When a setting is wrong, the start script refuses with a message, for example:
 
 ```
@@ -112,8 +157,9 @@ ERREUR : la cle des jetons (TAVERNE_CLE_JETON) est vide : La Taverne refuse de d
 
 ## Before pushing
 
-`python verifier.py` must print `Tout est bon.` It runs the real start script (17 cases, Node replaced by a stub)
-and the real installer against a local fake release folder protected by a token (11 cases: install, already
+`python verifier.py` must print `Tout est bon.` It runs the real start script (25 cases, Node replaced by a stub:
+settings, refusals, console passed to the game, read token kept away from the game, restart with Update after exit
+code 75, failed Update, crash code handed to AMP) and the real installer against a local fake release folder protected by a token (11 cases: install, already
 installed, wrong token, wrong SHA-256, tampered file, update, rollback, data untouched…).
 
 ## Install in AMP
@@ -136,3 +182,9 @@ le WebSocket, derrière nginx en HTTPS, **fermé au monde** par le pare-feu. La 
 panel TeamKit, Réglages → Site → 🍺 La Taverne) est obligatoire : vide ou trop courte, le jeu refuse de démarrer et
 explique quoi faire dans la console. Arrêt propre par SIGTERM : les tables en cours sont sauvées et reprises.
 Retour arrière : « Version voulue » = l'ancien numéro, Update, Start. Avant de pousser : `python verifier.py` → « Tout est bon. »
+
+**Mise à jour en douceur** : taper `maintenance 10` dans la console d'AMP (5, 10 ou 15 min ; `maintenance` seul = le
+« Délai d'annonce par défaut » ; `maintenance annuler`, `maintenance etat`, `maintenance a 05:00 10`). Les joueurs voient
+le compte à rebours, plus aucune partie ne démarre, puis le jeu sauvegarde, sort avec le code 75, et le lanceur fait
+l'Update et relance le jeu tout seul. Programmé : planificateur d'AMP, tâche « Envoyer une commande au RCON ou à la
+console » avec `maintenance 10` (rien d'autre).

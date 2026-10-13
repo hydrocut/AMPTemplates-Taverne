@@ -36,17 +36,17 @@ App.ExecutableLinux=/bin/bash
 App.WorkingDir=
 App.LinuxCommandLineArgs=
 App.WindowsCommandLineArgs=
-App.CommandLineArgs="{{$FullBaseDir}}lancer-taverne.sh" "port={{$HttpPort}}" "url={{UrlPublique}}" "origines={{Origines}}" "proxy={{DerriereNginx}}" "pendule={{PenduleDefaut}}" "signes={{SignesBots}}" "parties={{GarderParties}}" "stats={{GarderStats}}" "moderation={{GarderModeration}}" "connexions={{$MaxUsers}}" "parip={{MaxConnexionsIP}}" "tables={{MaxTables}}"
+App.CommandLineArgs="{{$FullBaseDir}}lancer-taverne.sh" "port={{$HttpPort}}" "url={{UrlPublique}}" "origines={{Origines}}" "proxy={{DerriereNginx}}" "pendule={{PenduleDefaut}}" "signes={{SignesBots}}" "parties={{GarderParties}}" "stats={{GarderStats}}" "moderation={{GarderModeration}}" "connexions={{$MaxUsers}}" "parip={{MaxConnexionsIP}}" "tables={{MaxTables}}" "annonce={{DelaiAnnonce}}" "versions={{AdresseVersions}}" "voulue={{VersionVoulue}}"
 App.UseLinuxIOREDIR=False
 App.AppSettings={}
-App.EnvironmentVariables={"TAVERNE_CLE_JETON":"{{CleJeton}}"}
+App.EnvironmentVariables={"TAVERNE_CLE_JETON":"{{CleJeton}}","TAVERNE_JETON_VERSIONS":"{{JetonVersions}}"}
 App.CommandLineParameterFormat={0} {1}
 App.CommandLineParameterDelimiter=
 App.ExitMethod=SIGTERM
 App.ExitTimeout=25
 App.ExitString=
 App.ExitFile=
-App.HasWriteableConsole=False
+App.HasWriteableConsole=True
 App.HasReadableConsole=True
 App.UDPLogger=False
 App.SupportsLiveSettingsChanges=False

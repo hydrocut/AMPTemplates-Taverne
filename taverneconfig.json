@@ -72,7 +72,7 @@
         "DisplayName": "Jeton de lecture des versions",
         "Category": "La Taverne:casino",
         "Subcategory": "Mises à jour:system_update:2",
-        "Description": "Jeton qui permet de télécharger le jeu. Pour GitHub : un jeton « fine-grained » limité au SEUL dépôt hydrocut/taverne, permission Contents en lecture seule (rien d'autre). Pour un dossier web : le jeton que nginx attend (Authorization: Bearer). Jamais écrit dans la console. S'il expire, l'Update le dit : en créer un nouveau et le coller ici.",
+        "Description": "Jeton qui permet de télécharger le jeu. Pour GitHub : un jeton « fine-grained » limité au SEUL dépôt hydrocut/taverne, permission Contents en lecture seule (rien d'autre). Pour un dossier web : le jeton que nginx attend (Authorization: Bearer). Jamais écrit dans la console. S'il expire, l'Update le dit : en créer un nouveau et le coller ici. Il sert aussi quand le jeu se relance après une mise à jour annoncée (commande « maintenance ») : il passe par une variable d'environnement que le lanceur retire avant de démarrer le jeu.",
         "Keywords": "jeton,token,github,pat,lecture,release,secret",
         "FieldName": "JetonVersions",
         "InputType": "password",
@@ -86,7 +86,7 @@
         "DisplayName": "Version voulue",
         "Category": "La Taverne:casino",
         "Subcategory": "Mises à jour:system_update:2",
-        "Description": "Vide = la dernière version publiée. Un numéro (ex. 0.1.0) = cette version précise : c'est ainsi qu'on revient en arrière après une mauvaise mise à jour (mettre l'ancien numéro, Update, Start). Les données (dossier donnees/) ne sont jamais touchées ; une copie est faite dans sauvegardes/ avant chaque changement de version.",
+        "Description": "Vide = la dernière version publiée. Un numéro (ex. 0.1.0) = cette version précise : c'est ainsi qu'on revient en arrière après une mauvaise mise à jour (mettre l'ancien numéro, Update, Start). Les données (dossier donnees/) ne sont jamais touchées ; une copie est faite dans sauvegardes/ avant chaque changement de version. Elle vaut aussi pour la relance après « maintenance ».",
         "Keywords": "version,retour,rollback,release,tag",
         "FieldName": "VersionVoulue",
         "InputType": "text",
@@ -128,6 +128,23 @@
         "EnumValues": {
             "oui": "Oui (recommandé)",
             "non": "Non : bots silencieux"
+        }
+    },
+    {
+        "DisplayName": "Délai d'annonce par défaut (mise à jour)",
+        "Category": "La Taverne:casino",
+        "Subcategory": "Mises à jour:system_update:2",
+        "Description": "Quand tu tapes « maintenance » seul dans la console (ou qu'une tâche du planificateur l'envoie), les joueurs voient un bandeau « Mise à jour de la Taverne dans 9:59 » pendant ce temps, plus aucune nouvelle partie ne démarre, puis le jeu sauvegarde les parties, fait l'Update et repart tout seul. « maintenance 5 », « maintenance 15 » ou « maintenance maintenant » choisissent un autre délai ; « maintenance annuler » arrête tout.",
+        "Keywords": "maintenance,mise a jour,annonce,delai,compte a rebours,update,TAVERNE_MAINTENANCE_MIN",
+        "FieldName": "DelaiAnnonce",
+        "InputType": "enum",
+        "ParamFieldName": "DelaiAnnonce",
+        "IncludeInCommandLine": false,
+        "DefaultValue": "10",
+        "EnumValues": {
+            "5": "5 minutes",
+            "10": "10 minutes (recommandé)",
+            "15": "15 minutes"
         }
     },
     {

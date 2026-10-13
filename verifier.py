@@ -14,11 +14,12 @@ Contrôle du template avant de le pousser (même rôle que ceux de Scribblers et
 5. les fichiers téléchargés à l'Update existent dans scripts/, à l'URL du dépôt du manifest ;
 6. les scripts : LF, ASCII, aucun {{, `bash -n` ; Node.js 22 figé avec son empreinte ;
 7. aller-retour par le VRAI lanceur sous bash (Node remplacé par un bouchon) : réglages rendus comme AMP,
-   variables données au jeu, refus clairs (clé vide, courte, d'exemple ; adresse ; bornes) ;
+   variables données au jeu, refus clairs (clé vide, courte, d'exemple ; adresse ; bornes), console d'AMP
+   transmise au jeu, jeton de lecture retiré du jeu, relance avec Update quand le jeu sort avec le code 75 ;
 8. le VRAI installateur sous bash contre un faux dossier de versions local protégé par un jeton : installation,
    « déjà installée », mauvais jeton, empreinte fausse, fichier modifié dans l'archive, mise à jour (ancienne
    gardée, copie des données), retour à une version précise, données jamais touchées ;
-9. les regex de console d'AMP sur de vraies lignes du serveur (essai du 13/10/2026) ;
+9. les regex de console d'AMP sur de vraies lignes du serveur (essai du 13/10/2026), lignes de maintenance comprises ;
 10. aucun secret dans le dépôt.
 """
 import glob
@@ -104,17 +105,20 @@ ATTENDU_KVP = {
     'App.ExecutableLinux': '/bin/bash',
     'App.ExitMethod': 'SIGTERM',               # le serveur sauvegarde les tables puis s'arrête (15 s au plus)
     'App.HasReadableConsole': 'True',
-    'App.HasWriteableConsole': 'False',
+    'App.HasWriteableConsole': 'True',          # « maintenance 10 » tapé dans la console d'AMP (ou envoyé par le planificateur)
+    'App.AdminMethod': 'STDIO',
     'App.ApplicationReadyMode': 'RegexMatch',
     'App.RootDir': './taverne/',
     'App.BaseDirectory': './taverne/',
     'App.PrimaryApplicationPortRef': 'HttpPort',
-    'App.EnvironmentVariables': '{"TAVERNE_CLE_JETON":"{{CleJeton}}"}',
+    'App.EnvironmentVariables': '{"TAVERNE_CLE_JETON":"{{CleJeton}}","TAVERNE_JETON_VERSIONS":"{{JetonVersions}}"}',
     'Limits.SleepMode': 'False',
 }
 for cle, val in ATTENDU_KVP.items():
     if cles.get(cle) != val:
         soucis.append('%s devrait valoir %s (vaut %r)' % (cle, val, cles.get(cle)))
+if not 1 <= int(cles.get('Limits.AutoRetryCount', '0')) <= 3:
+    soucis.append('Limits.AutoRetryCount : 1 à 3 relances après un plantage (0 couperait toute relance automatique)')
 if int(cles.get('App.ExitTimeout', '0')) < 20:
     soucis.append('App.ExitTimeout doit laisser au serveur ses 15 s d\'arrêt propre (>= 20)')
 if cles.get('Meta.URL') != manifest['url'] or manifest['origin'] != manifest['url'] + '.git':
@@ -158,11 +162,15 @@ ligne = cles['App.CommandLineArgs']
 args_maj = updates[-1]['UpdateSourceArgs']
 env_kvp = cles['App.EnvironmentVariables']
 passes = re.findall(r'"([a-z]+)=\{\{([$A-Za-z0-9_]+)\}\}"', ligne)
+# Les 3 réglages de l'Update servent aussi au lanceur (relance avec Update après « maintenance », code 75) :
+# passés une fois à l'Update ET une fois au lanceur (le jeton par l'environnement, jamais sur la ligne de commande).
+DE_L_UPDATE = ('AdresseVersions', 'JetonVersions', 'VersionVoulue')
 for c in config:
     champ = c['FieldName']
     nb = ligne.count('{{%s}}' % champ) + args_maj.count('{{%s}}' % champ) + env_kvp.count('{{%s}}' % champ)
-    if nb != 1:
-        soucis.append('{{%s}} doit être passé exactement une fois (ligne de commande, Update ou environnement) : %d' % (champ, nb))
+    attendu = 2 if champ in DE_L_UPDATE else 1
+    if nb != attendu or (champ in DE_L_UPDATE and args_maj.count('{{%s}}' % champ) != 1):
+        soucis.append('{{%s}} doit être passé %s : %d' % (champ, 'à l\'Update et au lanceur' if attendu == 2 else 'exactement une fois (ligne de commande, Update ou environnement)', nb))
 SECRETS = ('CleJeton', 'JetonVersions')
 for s in SECRETS:
     c = par_nom[s]
@@ -170,8 +178,10 @@ for s in SECRETS:
         soucis.append('%s : mot de passe, exclu de l\'import, vide par défaut' % s)
     if '{{%s}}' % s in ligne:
         soucis.append('%s ne doit jamais être sur la ligne de commande du jeu' % s)
-if '{{CleJeton}}' not in env_kvp or '{{JetonVersions}}' not in args_maj:
-    soucis.append('la clé passe par l\'environnement, le jeton de lecture par l\'Update seulement')
+if '{{CleJeton}}' not in env_kvp or '{{JetonVersions}}' not in args_maj or '"TAVERNE_JETON_VERSIONS":"{{JetonVersions}}"' not in env_kvp:
+    soucis.append('la clé passe par l\'environnement, le jeton de lecture par l\'Update et par l\'environnement du lanceur')
+if not re.search(r'^unset TAVERNE_JETON_VERSIONS$', lanceur, re.M) or lanceur.index('unset TAVERNE_JETON_VERSIONS') > lanceur.index('src/index.js <&3'):
+    soucis.append('le lanceur doit retirer TAVERNE_JETON_VERSIONS de l\'environnement avant de lancer le jeu')
 lues = set(re.findall(r'\$\{V\[(\w+)\]', lanceur))
 if {k for k, _ in passes} != lues:
     soucis.append('clés passées %s ≠ clés lues par le lanceur %s' % (sorted({k for k, _ in passes}), sorted(lues)))
@@ -256,13 +266,19 @@ else:
         with open(os.path.join(tmp, 'jeu', 'serveur', 'src', 'index.js'), 'w') as f:
             f.write('// bouchon\n')
         with open(os.path.join(tmp, 'node', 'bin', 'node'), 'w', newline='\n') as f:
+            # Bouchon : écrit ce qu'il reçoit, lit une ligne de la console (AMP), et sort avec le code
+            # demandé par le fichier codes.txt (une ligne par lancement : 75 = « relance demandée »).
             f.write('#!/bin/bash\nif [ "$1" = "--version" ]; then echo v22.23.3; exit 0; fi\n'
-                    'echo "ARGS=$*"; echo "PWD=$PWD"; env | grep -E "^(NODE_ENV|PORT|TAVERNE_)" | sort\n')
+                    'echo "ARGS=$*"; echo "PWD=$PWD"; env | grep -E "^(NODE_ENV|PORT|TAVERNE_)" | sort\n'
+                    'if read -r -t 2 ligne; then echo "CONSOLE=$ligne"; fi\n'
+                    'F="$PWD/../../codes.txt"; c=0\n'
+                    'if [ -s "$F" ]; then c=$(head -n 1 "$F"); tail -n +2 "$F" > "$F.n"; mv "$F.n" "$F"; fi\n'
+                    'echo "SORTIE=$c"; exit "$c"\n')
         shutil.copy(os.path.join(ICI, LANCEUR), tmp)
         defauts = {c['FieldName']: c['DefaultValue'] for c in config}
         defauts.update({'$HttpPort': '8790', '$FullBaseDir': unix(tmp) + '/'})
 
-        def lancer(change=None, cle='0123456789abcdef' * 4):
+        def lancer(change=None, cle='0123456789abcdef' * 4, entree=b'', codes=()):
             v = dict(defauts)
             v.update(change or {})
             args = rendre(ligne, v)
@@ -270,15 +286,18 @@ else:
             env.pop('TAVERNE_CLE_JETON', None)
             if cle is not None:
                 env['TAVERNE_CLE_JETON'] = cle
-            p = subprocess.run([bash] + args, env=env, capture_output=True, timeout=60)
+            env['TAVERNE_JETON_VERSIONS'] = v.get('JetonVersions', '')
+            with open(os.path.join(tmp, 'codes.txt'), 'w', newline='\n') as f:
+                f.write(''.join('%d\n' % c for c in codes))
+            p = subprocess.run([bash] + args, env=env, input=entree, capture_output=True, timeout=60)
             return p.returncode, p.stdout.decode('utf-8', 'replace') + p.stderr.decode('utf-8', 'replace')
 
         n = 0
 
-        def cas(titre, change, code, dedans=(), dehors=(), cle='0123456789abcdef' * 4):
+        def cas(titre, change, code, dedans=(), dehors=(), cle='0123456789abcdef' * 4, entree=b'', codes=()):
             global n
             n += 1
-            c, sortie = lancer(change, cle)
+            c, sortie = lancer(change, cle, entree, codes)
             if c != code:
                 soucis.append('lanceur, %s : code %d au lieu de %d\n%s' % (titre, c, code, sortie))
                 return
@@ -300,7 +319,31 @@ else:
             'TAVERNE_PENDULE_MS=30000',
             'TAVERNE_SIGNES_BOTS=1', 'TAVERNE_GARDER_PARTIES_JOURS=30', 'TAVERNE_GARDER_STATS_JOURS=365', 'TAVERNE_MAX_CONNEXIONS=1000',
             'TAVERNE_MAX_CONNEXIONS_IP=20', 'TAVERNE_MAX_TABLES=500', 'TAVERNE_JOURNAL_JOUEURS=1', 'TAVERNE_STOCKAGE=fichiers',
-            'La Taverne 0.1.0 avec Node.js v22.23.3, port 8790'), dehors=('ERREUR',))
+            'TAVERNE_MAINTENANCE_MIN=10', 'La Taverne 0.1.0 avec Node.js v22.23.3, port 8790', 'SORTIE=0'),
+            dehors=('ERREUR', 'TAVERNE_JETON_VERSIONS', 'mise a jour demandee'))
+        # La console d'AMP arrive au jeu (commande « maintenance 10 » du planificateur ou tapée à la main).
+        cas('console d\'AMP transmise au jeu', {}, 0, entree=b'maintenance 10\n', dedans=('CONSOLE=maintenance 10',))
+        cas('délai d\'annonce 15 min', {'DelaiAnnonce': '15'}, 0, dedans=('TAVERNE_MAINTENANCE_MIN=15',))
+        cas('délai d\'annonce inconnu', {'DelaiAnnonce': '7'}, 1, dedans=('delai d\'annonce \'7\'',), dehors=('ARGS=',))
+        # Le jeu sort avec le code 75 (fin du compte à rebours) : Update (faux installateur), puis relance.
+        with open(os.path.join(tmp, 'installer-taverne.sh'), 'w', newline='\n') as f:
+            f.write('#!/bin/bash\nfor a in "$@"; do case "$a" in jeton=?*) echo "INSTALLATEUR jeton recu";; jeton=) echo "INSTALLATEUR sans jeton";; *) echo "INSTALLATEUR $a";; esac; done\n'
+                    'env | grep -q TAVERNE_JETON_VERSIONS && echo "FUITE"\n'
+                    'exit "$(cat "$(dirname "$0")/code-installateur.txt" 2>/dev/null || echo 0)"\n')
+        jeton_v = 'jeton-de-lecture-' + 'cd34' * 4
+        cas('code 75 : Update puis relance', {'JetonVersions': jeton_v, 'VersionVoulue': '0.1.0'}, 0, codes=(75, 0), dedans=(
+            'mise a jour demandee par le jeu (code 75)', 'INSTALLATEUR source=github:hydrocut/taverne', 'INSTALLATEUR jeton recu',
+            'INSTALLATEUR version=0.1.0', 'SORTIE=75', 'SORTIE=0'), dehors=(jeton_v, 'FUITE', 'ERREUR'))
+        c75, s75 = lancer({'JetonVersions': jeton_v}, codes=(75, 75, 0))
+        if c75 != 0 or s75.count('La Taverne 0.1.0 avec Node.js') != 3:
+            soucis.append('lanceur : deux relances de suite devraient lancer le jeu 3 fois (code %d)\n%s' % (c75, s75))
+        with open(os.path.join(tmp, 'code-installateur.txt'), 'w') as f:
+            f.write('1')
+        cas('Update ratée : la version en place repart', {}, 0, codes=(75, 0), dedans=('n\'a pas abouti (code 1)', 'SORTIE=0'))
+        os.remove(os.path.join(tmp, 'code-installateur.txt'))
+        cas('plantage : le code passe à AMP (relance par AMP)', {}, 3, codes=(3,), dehors=('mise a jour demandee', 'INSTALLATEUR'))
+        cas('code 75 sans adresse des versions', {'AdresseVersions': ''}, 0, codes=(75, 0), dedans=('est vide : pas d\'Update',), dehors=('INSTALLATEUR',))
+        os.remove(os.path.join(tmp, 'installer-taverne.sh'))
         cas('réglages changés', {'PenduleDefaut': '0', 'SignesBots': 'non', 'DerriereNginx': 'non', 'UrlPublique': 'https://jeux.exemple.fr/',
                                   'Origines': 'https://jeux.exemple.fr, https://exemple.fr', 'GarderParties': '7', '$MaxUsers': '50'}, 0,
             dedans=('TAVERNE_PENDULE_MS=0', 'TAVERNE_SIGNES_BOTS=0', 'TAVERNE_PROXY=0', 'TAVERNE_URL_PUBLIQUE=https://jeux.exemple.fr\n',
@@ -326,7 +369,7 @@ else:
         if 'CLE' in re.sub(r'#.*', '', lanceur).split('echo "TeamKit')[1].split('exec')[0]:
             soucis.append('le lanceur ne doit jamais écrire la clé')
         if not [s for s in soucis if s.startswith('lanceur')]:
-            ok('aller-retour lanceur', '%d cas par le vrai lanceur (bash), dont %d refus' % (n, n - 3))
+            ok('aller-retour lanceur', '%d cas par le vrai lanceur (bash) : réglages, refus, console, relance après « maintenance »' % (n + 1))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -477,6 +520,10 @@ ESSAIS = [
     ('Console.UserJoinRegex', '[taverne] Arrivée : Le [roi] du pli [compte]', {'username': 'Le [roi] du pli'}),
     ('Console.UserLeaveRegex', '[taverne] Départ : Invité 4821', {'username': 'Invité 4821'}),
     ('Console.UserLeaveRegex', '[taverne] Départ : Le [roi] du pli', {'username': 'Le [roi] du pli'}),
+    # Mise à jour en douceur (serveur/test/maintenance-sortie.test.js) : chacun « part » à l'arrêt (la liste des joueurs
+    # d'AMP se vide), puis la ligne « Prêt » revient après la relance faite par le lanceur.
+    ('Console.UserLeaveRegex', '[taverne] Départ : Kevin', {'username': 'Kevin'}),
+    ('Console.AppReadyRegex', '[taverne] Prêt : La Taverne 0.2.0 écoute sur le port 8790 (https://taverne.teamkit.fr).', {}),
 ]
 REFUS = [
     ('Console.AppReadyRegex', '[taverne] production, jeux : belote, coinche, echecs, dames'),
@@ -488,6 +535,18 @@ REFUS = [
     ('Console.UserLeaveRegex', '[taverne] arrêt propre : 1 table(s) sauvegardée(s).'),
     ('Console.AppReadyRegex', '[taverne] 1 table(s) reprise(s) après redémarrage.'),
     ('Console.AppReadyRegex', '[taverne] production, jeux : belote, coinche, echecs, dames, poker, poker-tournoi, poker-duel, client servi ici (145 fichiers, empreinte b774e51c073d)'),
+    # Lignes de la mise à jour en douceur : ni arrivée, ni départ, ni « prêt ».
+    ('Console.UserJoinRegex', '[taverne] Maintenance : mise à jour annoncée dans 10 min (console). Plus de nouvelle partie ; les parties en cours continuent.'),
+    ('Console.UserLeaveRegex', '[taverne] Maintenance : mise à jour annoncée dans 10 min (console). Plus de nouvelle partie ; les parties en cours continuent.'),
+    ('Console.AppReadyRegex', '[taverne] Maintenance : arrêt dans 1 min.'),
+    ('Console.UserLeaveRegex', '[taverne] Maintenance : c\'est l\'heure : sauvegarde des parties en cours, arrêt, puis Update et relance (code de sortie 75).'),
+    ('Console.UserLeaveRegex', '[taverne] arrêt propre pour la mise à jour : 1 table(s) sauvegardée(s).'),
+    ('Console.UserLeaveRegex', '[taverne] Sortie avec le code 75 : relance demandée (mise à jour).'),
+    ('Console.AppReadyRegex', 'TeamKit : mise a jour demandee par le jeu (code 75) : Update de La Taverne, puis relance...'),
+    ('Console.AppReadyRegex', 'TeamKit : La Taverne 0.2.0 installee (a la place de 0.1.0, gardee dans jeu.ancien/). Donnees gardees : donnees/ (2,1M).'),
+    ('Console.UserLeaveRegex', '[taverne] Partie annulée après la mise à jour (belote, table T1a2b3c4d5, 2 joueur(s) prévenu(s)) : règles changées : règles du jeu changées (version 1 → 2).'),
+    ('Console.UserJoinRegex', '[taverne] Maintenance : dernier démarrage : 3 partie(s) reprise(s), 1 annulée(s) (belote : règles changées).'),
+    ('Console.UserJoinRegex', '[taverne] Maintenance : « 7 » : écris maintenance 5, 10, 15, maintenant, annuler, etat ou a 05:00 10. Tape « aide ».'),
 ]
 for cle, l, groupes in ESSAIS:
     mm = py(cles[cle]).search(l)
@@ -499,8 +558,9 @@ for cle, l in REFUS:
 # Les mêmes lignes, telles que le serveur les écrit (src/index.js, src/taverne.js du dépôt privé), si on l'a sous la main.
 serveur = os.path.join(ICI, '..', 'Taverne', 'serveur', 'src')
 if os.path.isdir(serveur):
-    src = io.open(os.path.join(serveur, 'taverne.js'), encoding='utf-8').read() + io.open(os.path.join(serveur, 'index.js'), encoding='utf-8').read()
-    for morceau in ('[taverne] Arrivée : ${s.pseudo} [${', '[taverne] Départ : ${s.pseudo}', '[taverne] Prêt : La Taverne ${'):
+    src = ''.join(io.open(os.path.join(serveur, f), encoding='utf-8').read() for f in ('taverne.js', 'index.js', 'maintenance.js'))
+    for morceau in ('[taverne] Arrivée : ${s.pseudo} [${', '[taverne] Départ : ${s.pseudo}', '[taverne] Prêt : La Taverne ${',
+                    "'[taverne] Maintenance : '", 'process.exit(o.code || 0)', 'CODE_RELANCE = 75'):
         if morceau not in src:
             soucis.append('le serveur n\'écrit plus « %s » : regex à revoir' % morceau)
 ok('console', '%d lignes reconnues, %d refusées' % (len(ESSAIS), len(REFUS)))
