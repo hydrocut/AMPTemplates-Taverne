@@ -118,7 +118,7 @@ installed, wrong token, wrong SHA-256, tampered file, update, rollback, data unt
 
 ## Install in AMP
 
-1. ADS → Configuration → Deployment templates: add `hydrocut/AMPTemplates-Taverne`, **Fetch latest**.
+1. ADS → Configuration → Instance Deployment → **Configuration Repositories**: add `hydrocut/AMPTemplates-Taverne:main`, save, **Fetch latest**.
 2. Create an instance « La Taverne (TeamKit) » (container), set the two passwords (token key, read token).
 3. **Update**, then **Start**. The console shows `Prêt` when ready.
 
