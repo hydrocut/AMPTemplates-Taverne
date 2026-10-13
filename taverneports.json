@@ -1,0 +1,9 @@
+[
+    {
+        "Protocol": "TCP",
+        "Port": 8790,
+        "Ref": "HttpPort",
+        "Name": "Port web du jeu",
+        "Description": "Seul port, en TCP : la page du jeu ET son WebSocket /ws. A NE PAS ouvrir au monde : nginx de la machine le sert en HTTPS (https://taverne.teamkit.fr) et le pare-feu le ferme a l'exterieur (voir le README). 8080-8125 sont pris par les panneaux d'AMP sur le serveur TeamKit."
+    }
+]

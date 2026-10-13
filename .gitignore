@@ -1,0 +1,15 @@
+# Ce depot ne contient que le template : le jeu est PRIVE (hydrocut/taverne), telecharge a chaque Update
+# avec un jeton de lecture. Rien de ce qui suit ne doit y entrer.
+taverne/
+node/
+jeu/
+jeu.*/
+donnees/
+sauvegardes/
+*.tar.gz
+*.sha256
+.env
+__pycache__/
+
+# Notes internes de TeamKit (essais, etapes), pas dans le depot public
+FAISABILITE.md

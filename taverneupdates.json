@@ -1,0 +1,32 @@
+[
+    {
+        "UpdateStageName": "Script d'installation",
+        "UpdateSourcePlatform": "Linux",
+        "UpdateSource": "FetchURL",
+        "UpdateSourceData": "https://raw.githubusercontent.com/hydrocut/AMPTemplates-Taverne/main/scripts/installer-taverne.sh",
+        "UpdateSourceArgs": "installer-taverne.sh",
+        "UpdateSourceTarget": "{{$FullBaseDir}}",
+        "UnzipUpdateSource": false,
+        "OverwriteExistingFiles": true,
+        "SkipOnFailure": false
+    },
+    {
+        "UpdateStageName": "Script de lancement",
+        "UpdateSourcePlatform": "Linux",
+        "UpdateSource": "FetchURL",
+        "UpdateSourceData": "https://raw.githubusercontent.com/hydrocut/AMPTemplates-Taverne/main/scripts/lancer-taverne.sh",
+        "UpdateSourceArgs": "lancer-taverne.sh",
+        "UpdateSourceTarget": "{{$FullBaseDir}}",
+        "UnzipUpdateSource": false,
+        "OverwriteExistingFiles": true,
+        "SkipOnFailure": false
+    },
+    {
+        "UpdateStageName": "Node.js 22 et La Taverne (version protegee par le jeton de lecture, empreinte verifiee)",
+        "UpdateSourcePlatform": "Linux",
+        "UpdateSource": "Executable",
+        "UpdateSourceData": "/bin/bash",
+        "UpdateSourceArgs": "\"{{$FullBaseDir}}installer-taverne.sh\" \"source={{AdresseVersions}}\" \"jeton={{JetonVersions}}\" \"version={{VersionVoulue}}\"",
+        "SkipOnFailure": false
+    }
+]
