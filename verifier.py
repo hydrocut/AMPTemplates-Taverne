@@ -544,7 +544,7 @@ REFUS = [
     ('Console.UserLeaveRegex', '[taverne] Sortie avec le code 75 : relance demandée (mise à jour).'),
     ('Console.AppReadyRegex', 'TeamKit : mise a jour demandee par le jeu (code 75) : Update de La Taverne, puis relance...'),
     ('Console.AppReadyRegex', 'TeamKit : La Taverne 0.2.0 installee (a la place de 0.1.0, gardee dans jeu.ancien/). Donnees gardees : donnees/ (2,1M).'),
-    ('Console.UserLeaveRegex', '[taverne] Partie annulée après la mise à jour (belote, table T1a2b3c4d5, 2 joueur(s) prévenu(s)) : règles changées : règles du jeu changées (version 1 → 2).'),
+    ('Console.UserLeaveRegex', '[taverne] Partie annulée après la mise à jour (belote, table T1a2b3c4d5, 2 joueur(s) prévenu(s)) : règles changées : version 1 → 2.'),
     ('Console.UserJoinRegex', '[taverne] Maintenance : dernier démarrage : 3 partie(s) reprise(s), 1 annulée(s) (belote : règles changées).'),
     ('Console.UserJoinRegex', '[taverne] Maintenance : « 7 » : écris maintenance 5, 10, 15, maintenant, annuler, etat ou a 05:00 10. Tape « aide ».'),
 ]
