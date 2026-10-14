@@ -36,10 +36,10 @@ App.ExecutableLinux=/bin/bash
 App.WorkingDir=
 App.LinuxCommandLineArgs=
 App.WindowsCommandLineArgs=
-App.CommandLineArgs="{{$FullBaseDir}}lancer-taverne.sh" "port={{$HttpPort}}" "url={{UrlPublique}}" "origines={{Origines}}" "proxy={{DerriereNginx}}" "pendule={{PenduleDefaut}}" "signes={{SignesBots}}" "parties={{GarderParties}}" "stats={{GarderStats}}" "moderation={{GarderModeration}}" "connexions={{$MaxUsers}}" "parip={{MaxConnexionsIP}}" "tables={{MaxTables}}" "annonce={{DelaiAnnonce}}" "versions={{AdresseVersions}}" "voulue={{VersionVoulue}}"
+App.CommandLineArgs="{{$FullBaseDir}}lancer-taverne.sh" "port={{$HttpPort}}" "url={{UrlPublique}}" "origines={{Origines}}" "proxy={{DerriereNginx}}" "pendule={{PenduleDefaut}}" "signes={{SignesBots}}" "parties={{GarderParties}}" "stats={{GarderStats}}" "moderation={{GarderModeration}}" "connexions={{$MaxUsers}}" "parip={{MaxConnexionsIP}}" "tables={{MaxTables}}" "annonce={{DelaiAnnonce}}" "versions={{AdresseVersions}}" "voulue={{VersionVoulue}}" "voix={{VoixUrl}}" "discord={{SalonDiscord}}" "site={{AdresseSite}}"
 App.UseLinuxIOREDIR=False
 App.AppSettings={}
-App.EnvironmentVariables={"TAVERNE_CLE_JETON":"{{CleJeton}}","TAVERNE_JETON_VERSIONS":"{{JetonVersions}}"}
+App.EnvironmentVariables={"TAVERNE_CLE_JETON":"{{CleJeton}}","TAVERNE_JETON_VERSIONS":"{{JetonVersions}}","TAVERNE_VOIX_CLE":"{{VoixCle}}","TAVERNE_VOIX_SECRET":"{{VoixSecret}}"}
 App.CommandLineParameterFormat={0} {1}
 App.CommandLineParameterDelimiter=
 App.ExitMethod=SIGTERM

@@ -111,7 +111,7 @@ ATTENDU_KVP = {
     'App.RootDir': './taverne/',
     'App.BaseDirectory': './taverne/',
     'App.PrimaryApplicationPortRef': 'HttpPort',
-    'App.EnvironmentVariables': '{"TAVERNE_CLE_JETON":"{{CleJeton}}","TAVERNE_JETON_VERSIONS":"{{JetonVersions}}"}',
+    'App.EnvironmentVariables': '{"TAVERNE_CLE_JETON":"{{CleJeton}}","TAVERNE_JETON_VERSIONS":"{{JetonVersions}}","TAVERNE_VOIX_CLE":"{{VoixCle}}","TAVERNE_VOIX_SECRET":"{{VoixSecret}}"}',
     'Limits.SleepMode': 'False',
 }
 for cle, val in ATTENDU_KVP.items():
@@ -171,7 +171,7 @@ for c in config:
     attendu = 2 if champ in DE_L_UPDATE else 1
     if nb != attendu or (champ in DE_L_UPDATE and args_maj.count('{{%s}}' % champ) != 1):
         soucis.append('{{%s}} doit être passé %s : %d' % (champ, 'à l\'Update et au lanceur' if attendu == 2 else 'exactement une fois (ligne de commande, Update ou environnement)', nb))
-SECRETS = ('CleJeton', 'JetonVersions')
+SECRETS = ('CleJeton', 'JetonVersions', 'VoixCle', 'VoixSecret')
 for s in SECRETS:
     c = par_nom[s]
     if c['InputType'] != 'password' or not c.get('ExcludeFromImport') or c['DefaultValue'] != '':
@@ -180,6 +180,10 @@ for s in SECRETS:
         soucis.append('%s ne doit jamais être sur la ligne de commande du jeu' % s)
 if '{{CleJeton}}' not in env_kvp or '{{JetonVersions}}' not in args_maj or '"TAVERNE_JETON_VERSIONS":"{{JetonVersions}}"' not in env_kvp:
     soucis.append('la clé passe par l\'environnement, le jeton de lecture par l\'Update et par l\'environnement du lanceur')
+if '"TAVERNE_VOIX_CLE":"{{VoixCle}}"' not in env_kvp or '"TAVERNE_VOIX_SECRET":"{{VoixSecret}}"' not in env_kvp:
+    soucis.append('la clé et le secret du vocal passent par l\'environnement')
+if not re.search(r'^unset TAVERNE_VOIX_CLE TAVERNE_VOIX_SECRET$', lanceur, re.M):
+    soucis.append('le lanceur doit relire la clé et le secret du vocal puis les retirer (il ne les rend au jeu que s\'ils sont bons)')
 if not re.search(r'^unset TAVERNE_JETON_VERSIONS$', lanceur, re.M) or lanceur.index('unset TAVERNE_JETON_VERSIONS') > lanceur.index('src/index.js <&3'):
     soucis.append('le lanceur doit retirer TAVERNE_JETON_VERSIONS de l\'environnement avant de lancer le jeu')
 lues = set(re.findall(r'\$\{V\[(\w+)\]', lanceur))
@@ -190,7 +194,7 @@ if set(re.findall(r'\$\{V\[(\w+)\]', installeur)) != set(re.findall(r'"([a-z]+)=
 if data[NOM + 'metaconfig.json'] != []:
     soucis.append('metaconfig : aucun fichier rendu par AMP (tout passe par le lanceur)')
 if not [s for s in soucis if 'réglage' in s or '{{' in s or 'clé' in s]:
-    ok('réglages', '%d réglages, lanceur et installateur d\'accord, 2 secrets protégés' % len(config))
+    ok('réglages', '%d réglages, lanceur et installateur d\'accord, %d secrets protégés' % (len(config), len(SECRETS)))
 
 # ── 5. fichiers de l'Update ───────────────────────────────────────────────────
 brut = 'https://raw.githubusercontent.com/' + manifest['url'].split('github.com/')[1] + '/main/'
@@ -278,12 +282,14 @@ else:
         defauts = {c['FieldName']: c['DefaultValue'] for c in config}
         defauts.update({'$HttpPort': '8790', '$FullBaseDir': unix(tmp) + '/'})
 
-        def lancer(change=None, cle='0123456789abcdef' * 4, entree=b'', codes=()):
+        def lancer(change=None, cle='0123456789abcdef' * 4, entree=b'', codes=(), env_plus=None):
             v = dict(defauts)
             v.update(change or {})
             args = rendre(ligne, v)
             env = dict(os.environ)
-            env.pop('TAVERNE_CLE_JETON', None)
+            for k in ('TAVERNE_CLE_JETON', 'TAVERNE_VOIX_CLE', 'TAVERNE_VOIX_SECRET'):
+                env.pop(k, None)
+            env.update(env_plus or {})
             if cle is not None:
                 env['TAVERNE_CLE_JETON'] = cle
             env['TAVERNE_JETON_VERSIONS'] = v.get('JetonVersions', '')
@@ -294,10 +300,10 @@ else:
 
         n = 0
 
-        def cas(titre, change, code, dedans=(), dehors=(), cle='0123456789abcdef' * 4, entree=b'', codes=()):
+        def cas(titre, change, code, dedans=(), dehors=(), cle='0123456789abcdef' * 4, entree=b'', codes=(), env_plus=None):
             global n
             n += 1
-            c, sortie = lancer(change, cle, entree, codes)
+            c, sortie = lancer(change, cle, entree, codes, env_plus)
             if c != code:
                 soucis.append('lanceur, %s : code %d au lieu de %d\n%s' % (titre, c, code, sortie))
                 return
@@ -319,8 +325,23 @@ else:
             'TAVERNE_PENDULE_MS=30000',
             'TAVERNE_SIGNES_BOTS=1', 'TAVERNE_GARDER_PARTIES_JOURS=30', 'TAVERNE_GARDER_STATS_JOURS=365', 'TAVERNE_MAX_CONNEXIONS=1000',
             'TAVERNE_MAX_CONNEXIONS_IP=20', 'TAVERNE_MAX_TABLES=500', 'TAVERNE_JOURNAL_JOUEURS=1', 'TAVERNE_STOCKAGE=fichiers',
-            'TAVERNE_MAINTENANCE_MIN=10', 'La Taverne 0.1.0 avec Node.js v22.23.3, port 8790', 'SORTIE=0'),
-            dehors=('ERREUR', 'TAVERNE_JETON_VERSIONS', 'mise a jour demandee'))
+            'TAVERNE_MAINTENANCE_MIN=10', 'La Taverne 0.1.0 avec Node.js v22.23.3, port 8790', 'SORTIE=0',
+            'TAVERNE_SALON_DISCORD=0', 'TAVERNE_SITE_URL=https://www.teamkit.fr', 'vocal integre absent'),
+            dehors=('ERREUR', 'TAVERNE_JETON_VERSIONS', 'mise a jour demandee', 'TAVERNE_VOIX_', 'AVERTISSEMENT'))
+        # Vocal de la table : complet -> les trois variables arrivent au jeu ; incomplet ou faux -> le jeu démarre SANS vocal.
+        SECRET_V = 'secret-du-vocal-' + 'ef56' * 6
+        VOIX_ENV = {'TAVERNE_VOIX_CLE': 'APIabc123', 'TAVERNE_VOIX_SECRET': SECRET_V}
+        cas('vocal intégré complet', {'VoixUrl': 'wss://voix.teamkit.fr/', 'SalonDiscord': 'oui'}, 0, env_plus=VOIX_ENV, dedans=(
+            'TAVERNE_VOIX_URL=wss://voix.teamkit.fr\n', 'TAVERNE_VOIX_CLE=APIabc123', 'TAVERNE_VOIX_SECRET=' + SECRET_V,   # seul le bouchon les écrit
+            'TAVERNE_SALON_DISCORD=1', 'vocal integre branche sur wss://voix.teamkit.fr.', 'SORTIE=0'))
+        c_v, s_v = lancer({'VoixUrl': 'wss://voix.teamkit.fr'}, env_plus=VOIX_ENV)
+        if SECRET_V in s_v.replace('TAVERNE_VOIX_SECRET=' + SECRET_V, ''):
+            soucis.append('lanceur : le secret du vocal ne doit jamais être écrit (hors bouchon)')
+        cas('vocal : adresse fausse', {'VoixUrl': 'https://voix.teamkit.fr'}, 0, env_plus=VOIX_ENV, dedans=('AVERTISSEMENT : vocal integre coupe', 'wss://', 'SORTIE=0'), dehors=('TAVERNE_VOIX_', 'ERREUR'))
+        cas('vocal : secret trop court', {'VoixUrl': 'wss://voix.teamkit.fr'}, 0, env_plus={'TAVERNE_VOIX_CLE': 'APIabc123', 'TAVERNE_VOIX_SECRET': 'court'}, dedans=('secret du vocal est vide, trop court', 'SORTIE=0'), dehors=('TAVERNE_VOIX_',))
+        cas('vocal : clé absente', {'VoixUrl': 'wss://voix.teamkit.fr'}, 0, env_plus={'TAVERNE_VOIX_SECRET': SECRET_V}, dedans=('cle du vocal (API key) est vide',), dehors=('TAVERNE_VOIX_', SECRET_V))
+        cas('salon Discord : valeur inconnue', {'SalonDiscord': 'peut-etre'}, 1, dedans=('salon Discord de la table',), dehors=('ARGS=',))
+        cas('adresse du site fausse', {'AdresseSite': 'http://www.teamkit.fr'}, 1, dedans=('adresse du site TeamKit',), dehors=('ARGS=',))
         # La console d'AMP arrive au jeu (commande « maintenance 10 » du planificateur ou tapée à la main).
         cas('console d\'AMP transmise au jeu', {}, 0, entree=b'maintenance 10\n', dedans=('CONSOLE=maintenance 10',))
         cas('délai d\'annonce 15 min', {'DelaiAnnonce': '15'}, 0, dedans=('TAVERNE_MAINTENANCE_MIN=15',))

@@ -21,6 +21,9 @@
 #     Une Update ratee ne bloque rien : la version en place repart.
 # Le jeton de lecture arrive par TAVERNE_JETON_VERSIONS (App.EnvironmentVariables) : il est
 # retire de l'environnement avant de lancer le jeu, qui n'en a pas besoin.
+# Vocal de la table : la cle et le secret du serveur vocal arrivent par TAVERNE_VOIX_CLE et
+# TAVERNE_VOIX_SECRET (App.EnvironmentVariables). Reglages du vocal vides ou faux = le jeu
+# demarre quand meme, SANS vocal integre (un avertissement le dit) : le vocal ne bloque jamais.
 # Le serveur ecrit lui-meme la ligne 'Pret', les arrivees et les departs (regex d'AMP).
 cd "$(dirname "$0")" || exit 1
 ICI="$PWD"
@@ -30,7 +33,7 @@ export LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 # Seulement les cles connues, chacune une fois : un guillemet colle dans un reglage d'AMP
 # (remplacement brut) ne peut pas glisser un argument de plus.
-CONNUES=" port url origines proxy pendule signes parties stats moderation connexions parip tables annonce versions voulue "
+CONNUES=" port url origines proxy pendule signes parties stats moderation connexions parip tables annonce versions voulue voix discord site "
 declare -A V
 for a in "$@"; do
   case "$a" in
@@ -92,6 +95,15 @@ SOURCE_V="${V[versions]// /}"
 VOULUE_V="${V[voulue]// /}"
 JETON_V="${TAVERNE_JETON_VERSIONS:-}"
 unset TAVERNE_JETON_VERSIONS
+VOIX_URL="${V[voix]// /}"
+VOIX_URL="${VOIX_URL%/}"
+DISCORD="${V[discord]:-non}"
+SITE="${V[site]// /}"
+SITE="${SITE%/}"
+[ -n "$SITE" ] || SITE="https://www.teamkit.fr"
+VOIX_K="${TAVERNE_VOIX_CLE:-}"
+VOIX_S="${TAVERNE_VOIX_SECRET:-}"
+unset TAVERNE_VOIX_CLE TAVERNE_VOIX_SECRET
 
 borne "port" "$PORT" 1024 65535
 borne "parties gardees" "$PARTIES" 1 365
@@ -111,6 +123,22 @@ IFS=',' read -r -a LISTE <<< "$ORIGINES"
 for o in "${LISTE[@]}"; do
   [[ "$o" =~ $ADRESSE_RE ]] || refuser "origine '$o' : de la forme https://taverne.teamkit.fr, separees par des virgules."
 done
+[[ "$DISCORD" =~ ^(oui|non)$ ]] || refuser "salon Discord de la table '$DISCORD' : oui ou non."
+[[ "$SITE" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || refuser "adresse du site TeamKit '$SITE' : de la forme https://www.teamkit.fr (sans chemin ni / a la fin)."
+# Vocal integre : les trois reglages ensemble, sinon pas de vocal integre (le jeu demarre quand meme).
+VOIX_OK=0
+if [ -z "$VOIX_URL" ] && [ -z "$VOIX_K" ] && [ -z "$VOIX_S" ]; then
+  echo "TeamKit : vocal integre absent (reglages du vocal vides)."
+elif ! [[ "$VOIX_URL" =~ ^wss://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]]; then
+  echo "AVERTISSEMENT : vocal integre coupe : l'adresse du vocal doit etre de la forme wss://voix.teamkit.fr (sans chemin ni / a la fin)."
+elif ! [[ "$VOIX_K" =~ ^[A-Za-z0-9_-]{3,64}$ ]]; then
+  echo "AVERTISSEMENT : vocal integre coupe : la cle du vocal (API key) est vide ou contient un caractere special."
+elif ! [[ "$VOIX_S" =~ ^[A-Za-z0-9_+/=-]{32,128}$ ]]; then
+  echo "AVERTISSEMENT : vocal integre coupe : le secret du vocal est vide, trop court (32 caracteres au moins) ou contient un caractere special."
+else
+  VOIX_OK=1
+  echo "TeamKit : vocal integre branche sur $VOIX_URL."
+fi
 
 # --- 3. Le jeu est-il installe ? -------------------------------------------------------
 [ -x "$NODE" ] || { echo "ERREUR : Node.js n'est pas installe ($NODE). Lance Update."; exit 1; }
@@ -139,6 +167,14 @@ export TAVERNE_MAX_TABLES="$TABLES"
 export TAVERNE_JOURNAL_JOUEURS=1
 export TAVERNE_MAINTENANCE_MIN="$ANNONCE"
 export TAVERNE_CLE_JETON="$CLE"
+export TAVERNE_SALON_DISCORD="$(oui_non "$DISCORD")"
+export TAVERNE_SITE_URL="$SITE"
+if [ "$VOIX_OK" = 1 ]; then
+  export TAVERNE_VOIX_URL="$VOIX_URL"
+  export TAVERNE_VOIX_CLE="$VOIX_K"
+  export TAVERNE_VOIX_SECRET="$VOIX_S"
+fi
+unset VOIX_K VOIX_S
 
 # --- 4. Le jeu, et sa relance apres une mise a jour annoncee (code 75) ------------------
 RELANCE=75

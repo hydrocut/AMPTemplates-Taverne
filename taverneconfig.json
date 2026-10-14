@@ -242,5 +242,75 @@
         "MinValue": "10",
         "MaxValue": "5000",
         "Suffix": "tables"
+    },
+    {
+        "DisplayName": "Vocal intégré : adresse",
+        "Category": "La Taverne:casino",
+        "Subcategory": "Vocal de la table:mic:6",
+        "Description": "L'adresse du serveur vocal « Voix de la Taverne » (instance AMP à part, LiveKit) : wss://voix.teamkit.fr, sans / à la fin. VIDE = pas de vocal intégré : le bouton 🎙️ ne propose que le salon Discord (s'il est ouvert), et rien ne casse. Il faut aussi la clé et le secret ci-dessous, les MÊMES que dans l'instance « Voix de la Taverne ».",
+        "Keywords": "vocal,voix,micro,livekit,wss,TAVERNE_VOIX_URL",
+        "FieldName": "VoixUrl",
+        "InputType": "text",
+        "ParamFieldName": "VoixUrl",
+        "IncludeInCommandLine": false,
+        "DefaultValue": "",
+        "EnumValues": {}
+    },
+    {
+        "DisplayName": "Vocal intégré : clé (API key)",
+        "Category": "La Taverne:casino",
+        "Subcategory": "Vocal de la table:mic:6",
+        "Description": "La clé d'API de l'instance « Voix de la Taverne » (champ « Clé » de cette instance, par exemple APIxxxxxxxx) : lettres, chiffres, - et _. Vide = pas de vocal intégré. Elle passe au jeu par une variable d'environnement, jamais dans la console.",
+        "Keywords": "vocal,voix,livekit,cle,api key,TAVERNE_VOIX_CLE",
+        "FieldName": "VoixCle",
+        "InputType": "password",
+        "ParamFieldName": "VoixCle",
+        "IncludeInCommandLine": false,
+        "ExcludeFromImport": true,
+        "DefaultValue": "",
+        "EnumValues": {}
+    },
+    {
+        "DisplayName": "Vocal intégré : secret",
+        "Category": "La Taverne:casino",
+        "Subcategory": "Vocal de la table:mic:6",
+        "Description": "Le secret de l'instance « Voix de la Taverne » (32 caractères au moins) : le jeu signe avec lui les clés d'entrée des joueurs (5 minutes, une seule table, le micro seulement) et sort de la salle vocale un joueur qui se lève. Vide = pas de vocal intégré. Jamais écrit dans la console. S'il fuit : en fabriquer un nouveau et le changer aux DEUX endroits (cette instance et « Voix de la Taverne »).",
+        "Keywords": "vocal,voix,livekit,secret,TAVERNE_VOIX_SECRET",
+        "FieldName": "VoixSecret",
+        "InputType": "password",
+        "ParamFieldName": "VoixSecret",
+        "IncludeInCommandLine": false,
+        "ExcludeFromImport": true,
+        "DefaultValue": "",
+        "EnumValues": {}
+    },
+    {
+        "DisplayName": "Salon Discord de la table",
+        "Category": "La Taverne:casino",
+        "Subcategory": "Vocal de la table:mic:6",
+        "Description": "Oui : à la table, le bouton « 🎧 Salon Discord » demande au site TeamKit (qui demande au bot) un salon vocal temporaire « 🍺 Table de <pseudo> », visible seulement par les joueurs assis qui ont un Discord lié, supprimé à la fin de la table ou après 5 minutes vide. Mettre Oui seulement quand la route du site (/api/taverne/vocal) et le bot sont à jour. Même règle des moins de 16 ans que le vocal intégré.",
+        "Keywords": "discord,salon,vocal,bot,TAVERNE_SALON_DISCORD",
+        "FieldName": "SalonDiscord",
+        "InputType": "enum",
+        "ParamFieldName": "SalonDiscord",
+        "IncludeInCommandLine": false,
+        "DefaultValue": "non",
+        "EnumValues": {
+            "non": "Non (par défaut)",
+            "oui": "Oui : bouton 🎧 Salon Discord"
+        }
+    },
+    {
+        "DisplayName": "Adresse du site TeamKit",
+        "Category": "La Taverne:casino",
+        "Subcategory": "Vocal de la table:mic:6",
+        "Description": "Le site qui crée les salons Discord des tables (route /api/taverne/vocal, signée avec la clé des jetons) : https://www.teamkit.fr, sans / à la fin.",
+        "Keywords": "site,teamkit,discord,TAVERNE_SITE_URL",
+        "FieldName": "AdresseSite",
+        "InputType": "text",
+        "ParamFieldName": "AdresseSite",
+        "IncludeInCommandLine": false,
+        "DefaultValue": "https://www.teamkit.fr",
+        "EnumValues": {}
     }
 ]

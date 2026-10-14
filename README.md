@@ -75,6 +75,13 @@ A refused archive changes nothing. **Rollback:** set « Version voulue » to the
 | Signes des bots | `TAVERNE_SIGNES_BOTS` | oui |
 | Parties / statistiques / modération gardées | `TAVERNE_GARDER_*_JOURS` | 30 / 365 / 365 days |
 | Connexions au plus (AMP's Max Users) / par adresse IP / tables au plus | `TAVERNE_MAX_*` | 1000 / 20 / 500 |
+| Vocal intégré : adresse | `TAVERNE_VOIX_URL` | empty → no built-in voice chat (no button, nothing breaks) |
+| Vocal intégré : clé (API key) / secret (passwords) | `TAVERNE_VOIX_CLE` / `TAVERNE_VOIX_SECRET` (environment; the start script hands them to the game only when the three voice settings are valid, otherwise it prints a warning and the game starts **without** voice) | empty |
+| Salon Discord de la table | `TAVERNE_SALON_DISCORD` | non |
+| Adresse du site TeamKit | `TAVERNE_SITE_URL` (signed route `/api/taverne/vocal`, for the Discord channel of a table) | `https://www.teamkit.fr` |
+
+The voice server itself is a separate instance (`hydrocut/AMPTemplates-TaverneVoix`, LiveKit): its API key and secret are
+the ones to paste here, the same on both instances.
 
 ## Graceful update (console command `maintenance`)
 
